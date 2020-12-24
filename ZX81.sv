@@ -24,6 +24,7 @@
 
 module emu
 (
+`ifndef CYCLONE
 	//Master input clock
 	input         CLK_50M,
 
@@ -80,7 +81,6 @@ module emu
 	output        SD_MOSI,
 	input         SD_MISO,
 	output        SD_CS,
-	input         SD_CD,
 
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
@@ -124,6 +124,49 @@ module emu
 	output  [6:0] USER_OUT,
 
 	input         OSD_STATUS
+`else
+	input         CLK_50M,
+	output        LED_USER,
+
+	output  [7:0] VGA_R,
+	output  [7:0] VGA_G,
+	output  [7:0] VGA_B,
+	output        VGA_HS,
+	output        VGA_VS,
+	output        AUDSG_L,
+	output        AUDSG_R,
+
+	output        SD_SCK,
+	output        SD_MOSI,
+	input         SD_MISO,
+	output        SD_CS,
+
+	output        SDRAM_CLK,
+	output        SDRAM_CKE,
+	output [12:0] SDRAM_A,
+	output  [1:0] SDRAM_BA,
+	inout  [15:0] SDRAM_DQ,
+	output        SDRAM_DQML,
+	output        SDRAM_DQMH,
+	output        SDRAM_nCS,
+	output        SDRAM_nCAS,
+	output        SDRAM_nRAS,
+	output        SDRAM_nWE,
+	
+	inout         PS2_CLK,
+	inout         PS2_DAT,
+
+	output        JOY_CLK,
+	output        JOY_LOAD,
+	input         JOY_DATA,
+	output        JOY_SELECT,
+
+	output        MCLK,
+	output        SCLK,
+	output        LRCLK,
+	output        SDIN,
+	output        STM_RST = 1'b0
+`endif	
 );
 
 assign ADC_BUS  = 'Z;
@@ -172,8 +215,13 @@ wire locked;
 
 pll pll
 (
+`ifndef CYCLONE
 	.refclk(CLK_50M),
 	.outclk_0(clk_sys),
+`else
+	.inclk0(CLK_50M),
+	.c0(clk_sys),
+`endif
 	.locked(locked)
 );
 
@@ -216,10 +264,13 @@ wire  [1:0] buttons;
 wire  [4:0] joystick_0;
 wire  [4:0] joystick_1;
 wire [31:0] status;
-
+`ifndef CYCLONE
 wire        forced_scandoubler;
+`else
+wire        forced_scandoubler=host_scandoubler;
+`endif
 wire [21:0] gamma_bus;
-
+`ifndef CYCLONE
 hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -244,7 +295,68 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index)
 );
+`else
+wire [7:0]R_OSD,G_OSD,B_OSD;
+wire host_scandoubler;
 
+data_io data_io
+(
+	.clk(clk_sys),
+	.CLOCK_50(CLOCK_50), //Para modulos de I2s y Joystick
+	
+	.debug(),
+	
+	.reset_n(locked),
+
+	.vga_hsync(~HSync),
+	.vga_vsync(~VSync),
+	
+	.red_i({r,{3{i & r}}}),
+	.green_i({g,{3{i & g}}}),
+	.blue_i({b,{3{i & b}}}),
+	.red_o(R_OSD),
+	.green_o(G_OSD),
+	.blue_o(B_OSD),
+	
+	.ps2k_clk_in(PS2_CLK),
+	.ps2k_dat_in(PS2_DAT),
+	.ps2_key(ps2_key),
+	.host_scandoubler_disable(host_scandoubler),
+	
+`ifndef JOYDC
+	.JOY_CLK(JOY_CLK),
+	.JOY_LOAD(JOY_LOAD),
+	.JOY_DATA(JOY_DATA),
+	.JOY_SELECT(JOY_SELECT),
+	.joy1(joystick_0),
+	.joy2(joystick_1),
+`endif
+	.dac_MCLK(MCLK),
+	.dac_LRCK(LRCLK),
+	.dac_SCLK(SCLK),
+	.dac_SDIN(SDIN),
+	.L_data(AUDIO_L),
+	.R_data(AUDIO_R),
+	
+	.spi_miso(SD_MISO),
+	.spi_mosi(SD_MOSI),
+	.spi_clk(SD_SCK),
+	.spi_cs(SD_CS),
+
+	.img_mounted(img_mounted),
+	.img_size(img_size),
+
+	.status(status),
+	
+	.ioctl_ce(1'b1),
+	.ioctl_wr(ioctl_wr),
+	.ioctl_addr(ioctl_addr),
+	.ioctl_dout(ioctl_dout),
+	.ioctl_download(ioctl_download),
+	.ioctl_index(ioctl_index),
+	.ioctl_file_ext()
+);
+`endif
 
 ///////////////////   CPU   ///////////////////
 wire [15:0] addr;
@@ -619,10 +731,16 @@ video_mixer #(400,1,1) video_mixer
 	.hq2x(scale == 1),
 	.mono(0),
 
+`ifndef CYCLONE
 	.R({r,{3{i & r}}}),
 	.G({g,{3{i & g}}}),
 	.B({b,{3{i & b}}}),
-
+`else
+	.R(R_OSD),//{r,{3{i & r}}}),
+	.G(R_OSD),//{g,{3{i & g}}}),
+	.B(B_OSD),//{b,{3{i & b}}}),
+	.VGA_DE(),
+`endif
 	.HBlank(hblank),
 	.VBlank(vblank)
 );
