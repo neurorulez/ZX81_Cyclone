@@ -1,5 +1,5 @@
 --------------------------------------------------------------
--- Control Module to simulate a Mist-Arm menu by NeuroRulez --
+-- Control Module to simulate a Mister/Mist-Arm menu by NeuroRulez --
 --------------------------------------------------------------
 
 library IEEE;
@@ -52,6 +52,8 @@ entity data_io is
 		dac_LRCK : out std_logic;
 		dac_SCLK : out std_logic;
 		dac_SDIN : out std_logic;
+		sigma_L : out std_logic;
+		sigma_R : out std_logic;
 	   L_data : in std_logic_vector(15  downto 0); 	
 	   R_data : in std_logic_vector(15  downto 0); 	
 
@@ -165,7 +167,7 @@ signal ram_addr_wr_8bit : std_logic_vector(18 downto 0);
 signal ram_step : integer := 0;
 signal ram_wr  : std_logic := '0';
 
-signal dipswitches : std_logic_vector(15 downto 0);
+signal dipswitches : std_logic_vector(31 downto 0);
 signal size : std_logic_vector(31 downto 0);
 signal extension : std_logic_vector(31 downto 0);
 signal ioctl_start_addr     : std_logic_vector(23 downto 0); --Direccion de la ROM para el estado incial
@@ -191,6 +193,16 @@ signal joystick2 : std_logic_vector(7 downto 0);
 			JOY_SELECT :    OUT STD_LOGIC;
 			joystick1  :    OUT STD_LOGIC_VECTOR(7 downto 0);
 			joystick2  :    OUT STD_LOGIC_VECTOR(7 downto 0)
+		);
+	END COMPONENT;
+
+	COMPONENT sigma_delta_dac
+	PORT
+		(			
+			CLK		:	 IN  STD_LOGIC;
+			RESET		:	 IN  STD_LOGIC;
+			DACin		:   IN  STD_LOGIC_VECTOR(15 downto 0);
+			DACout	:   OUT STD_LOGIC
 		);
 	END COMPONENT;
 
@@ -426,9 +438,9 @@ begin
 							--host_xxx  <=mem_write(6);
 							--host_xxx  <=mem_write(7);
 
---						when X"F0" => -- Scale Red
---							mem_busy<='0';
---							scalered<=unsigned(mem_write(4 downto 0));
+						--when X"F0" => -- Scale Red
+						--	mem_busy<='0';
+						--	scalered<=unsigned(mem_write(4 downto 0));
 							
 						when X"F4" => -- Extension
 							mem_busy<='0';
@@ -440,7 +452,7 @@ begin
 							
 						when X"FC" => -- Host SW
 							mem_busy<='0';
-							dipswitches<=mem_write(15 downto 0);
+							dipswitches<=mem_write(31 downto 0);
 
 						when others =>
 							mem_busy<='0';
@@ -540,7 +552,7 @@ port map
 		scanline_ena => '0'
 	);
 
-joyystick : joydecoder 
+joystick : joydecoder 
 port map
 (
 	clk        => CLOCK_50,
@@ -567,6 +579,24 @@ port map
 	R_data    => R_data
 ); 
 
+sigma_delta_dac_l : sigma_delta_dac
+port map
+(
+	CLK => CLOCK_50,
+	RESET => not reset_n,
+	DACin => not L_data(15) & L_data(14 downto 0),
+	DACout => sigma_L
+);
+
+sigma_delta_dac_r : sigma_delta_dac
+port map
+(
+	CLK => CLOCK_50,
+	RESET => not reset_n,
+	DACin => not R_data(15) & R_data(14 downto 0),
+	DACout => sigma_R
+);
+
 ---	
 
 process(clk)
@@ -586,19 +616,23 @@ img_size <= x"00000000" & size;
 --img_size <= x"00000000" & x"0002F900";
 
 status(0)<=host_reset;
-status(2 downto 1)<=dipswitches(3 downto 2); --st_joy1
-status(4 downto 3)<=dipswitches(5 downto 4); --st_joy2
-status(5)<='0';
-status(6)<=dipswitches(15); --st_fasttape
-status(7)<='0';
-status(9  downto  8) <= dipswitches(11 downto 10); --st_video_ULA
-status(12 downto 10) <= dipswitches(14 downto 12); --st_memory "100" Plus3
-status(14 downto 13) <= dipswitches(9) & dipswitches(9); --st_feat Recortado 00 = ULA+ & TIMEX 11=Desactivado
-status(16 downto 15) <= dipswitches( 1 downto  0);  --st_scanlines
-status(18 downto 17) <= dipswitches( 7 downto  6);  --st_mmc
-status(19)<='0';
-status(21 downto 20) <= '1' & dipswitches(8);  --st_gsnd Recortado 11 = Off / 10 = GS_2MB
-status(31 downto 22) <= (others => '0');
+status(31 downto 1)<=dipswitches(31 downto 1);
+--status(13 downto 12)<=dipswitches(31 downto 30);
+--status(31 downto 14) <= (others => '0');
+
+--status(2 downto 1)<=dipswitches(3 downto 2); --st_joy1
+--status(4 downto 3)<=dipswitches(5 downto 4); --st_joy2
+--status(5)<='0';
+--status(6)<=dipswitches(15); --st_fasttape
+--status(7)<='0';
+--status(9  downto  8) <= dipswitches(11 downto 10); --st_video_ULA
+--status(12 downto 10) <= dipswitches(14 downto 12); --st_memory "100" Plus3
+--status(14 downto 13) <= dipswitches(9) & dipswitches(9); --st_feat Recortado 00 = ULA+ & TIMEX 11=Desactivado
+--status(16 downto 15) <= dipswitches( 1 downto  0);  --st_scanlines
+--status(18 downto 17) <= dipswitches( 7 downto  6);  --st_mmc
+--status(19)<='0';
+--status(21 downto 20) <= '1' & dipswitches(8);  --st_gsnd Recortado 11 = Off / 10 = GS_2MB
+--status(31 downto 22) <= (others => '0');
 
 debug <= '1' when ioctl_index = X"04" else '0';
 

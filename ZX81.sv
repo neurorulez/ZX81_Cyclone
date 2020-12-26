@@ -133,6 +133,8 @@ module emu
 	output  [7:0] VGA_B,
 	output        VGA_HS,
 	output        VGA_VS,
+	output        VGA_CLOCK, //RELOADED
+	output        VGA_BLANK = 1'b1, //RELOADED
 	output        AUDSG_L,
 	output        AUDSG_R,
 
@@ -155,12 +157,15 @@ module emu
 	
 	inout         PS2_CLK,
 	inout         PS2_DAT,
-
+`ifndef JOYDC
 	output        JOY_CLK,
 	output        JOY_LOAD,
 	input         JOY_DATA,
 	output        JOY_SELECT,
-
+`else
+	input	wire [5:0]JOYSTICK1,
+	input	wire [5:0]JOYSTICK2,
+`endif	
 	output        MCLK,
 	output        SCLK,
 	output        LRCLK,
@@ -261,13 +266,20 @@ wire [10:0] ps2_key;
 wire [24:0] ps2_mouse;
 
 wire  [1:0] buttons;
+
+`ifndef JOYDC
 wire  [4:0] joystick_0;
 wire  [4:0] joystick_1;
+`else
+wire  [4:0] joystick_0 = ~JOYSTICK1[4:0];
+wire  [4:0] joystick_1 = ~JOYSTICK2[4:0];
+`endif
+
 wire [31:0] status;
 `ifndef CYCLONE
 wire        forced_scandoubler;
 `else
-wire        forced_scandoubler=host_scandoubler;
+wire        forced_scandoubler=host_scandoubler; //Negado = VGA x defecto.
 `endif
 wire [21:0] gamma_bus;
 `ifndef CYCLONE
@@ -298,6 +310,10 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 `else
 wire [7:0]R_OSD,G_OSD,B_OSD;
 wire host_scandoubler;
+wire [7:0]R_IN = ~(hblank | vblank) ? {r,{3{i & r}}} : 0;
+wire [7:0]G_IN = ~(hblank | vblank) ? {g,{3{i & g}}} : 0;
+wire [7:0]B_IN = ~(hblank | vblank) ? {b,{3{i & b}}} : 0;
+assign VGA_CLOCK = CLK_VIDEO;
 
 data_io data_io
 (
@@ -311,9 +327,9 @@ data_io data_io
 	.vga_hsync(~HSync),
 	.vga_vsync(~VSync),
 	
-	.red_i({r,{3{i & r}}}),
-	.green_i({g,{3{i & g}}}),
-	.blue_i({b,{3{i & b}}}),
+	.red_i(R_IN),//{r,{3{i & r}}}),
+	.green_i(G_IN),//{g,{3{i & g}}}),
+	.blue_i(B_IN),//{b,{3{i & b}}}),
 	.red_o(R_OSD),
 	.green_o(G_OSD),
 	.blue_o(B_OSD),
@@ -335,6 +351,8 @@ data_io data_io
 	.dac_LRCK(LRCLK),
 	.dac_SCLK(SCLK),
 	.dac_SDIN(SDIN),
+	.sigma_L(AUDSG_L),
+	.sigma_R(AUDSG_R),
 	.L_data(AUDIO_L),
 	.R_data(AUDIO_R),
 	
@@ -737,13 +755,14 @@ video_mixer #(400,1,1) video_mixer
 	.B({b,{3{i & b}}}),
 `else
 	.R(R_OSD),//{r,{3{i & r}}}),
-	.G(R_OSD),//{g,{3{i & g}}}),
+	.G(G_OSD),//{g,{3{i & g}}}),
 	.B(B_OSD),//{b,{3{i & b}}}),
 	.VGA_DE(),
 `endif
 	.HBlank(hblank),
 	.VBlank(vblank)
 );
+
 
 assign CLK_VIDEO = clk_sys;
 
