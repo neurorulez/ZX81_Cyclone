@@ -165,6 +165,7 @@ module emu
 `else
 	input	wire [5:0]JOYSTICK1,
 	input	wire [5:0]JOYSTICK2,
+	output        JOY_SELECT = 1'b1,
 `endif	
 	output        MCLK,
 	output        SCLK,
@@ -310,22 +311,22 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 `else
 wire [7:0]R_OSD,G_OSD,B_OSD;
 wire host_scandoubler;
-wire [7:0]R_IN = ~(hblank | vblank) ? {r,{3{i & r}}} : 0;
-wire [7:0]G_IN = ~(hblank | vblank) ? {g,{3{i & g}}} : 0;
-wire [7:0]B_IN = ~(hblank | vblank) ? {b,{3{i & b}}} : 0;
+wire [7:0]R_IN = ~(hblank | vblank) ? {r,{6{i & r}}} : 0;
+wire [7:0]G_IN = ~(hblank | vblank) ? {g,{6{i & g}}} : 0;
+wire [7:0]B_IN = ~(hblank | vblank) ? {b,{6{i & b}}} : 0;
 assign VGA_CLOCK = CLK_VIDEO;
 
 data_io data_io
 (
 	.clk(clk_sys),
-	.CLOCK_50(CLOCK_50), //Para modulos de I2s y Joystick
+	.CLOCK_50(CLK_50M), //Para modulos de I2s y Joystick
 	
 	.debug(),
 	
 	.reset_n(locked),
 
-	.vga_hsync(~HSync),
-	.vga_vsync(~VSync),
+	.vga_hsync(~hsync),
+	.vga_vsync(~vsync),
 	
 	.red_i(R_IN),//{r,{3{i & r}}}),
 	.green_i(G_IN),//{g,{3{i & g}}}),
@@ -736,8 +737,11 @@ always @(posedge CLK_VIDEO) begin
 	HSync <= hsync2;
 	if(~HSync & hsync2) VSync <= vsync2;
 end
- 
+`ifndef CYCLONE 
 video_mixer #(400,1,1) video_mixer
+`else
+video_mixer #(400,0,1) video_mixer
+`endif
 (
 	.*,
 	.clk_vid(CLK_VIDEO),
@@ -754,9 +758,9 @@ video_mixer #(400,1,1) video_mixer
 	.G({g,{3{i & g}}}),
 	.B({b,{3{i & b}}}),
 `else
-	.R(R_OSD),//{r,{3{i & r}}}),
-	.G(G_OSD),//{g,{3{i & g}}}),
-	.B(B_OSD),//{b,{3{i & b}}}),
+	.R(R_OSD),
+	.G(G_OSD),
+	.B(B_OSD),
 	.VGA_DE(),
 `endif
 	.HBlank(hblank),
