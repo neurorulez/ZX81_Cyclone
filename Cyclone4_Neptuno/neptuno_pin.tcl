@@ -137,7 +137,6 @@ set_location_assignment PIN_B19 -to JOY_DATA
 set_location_assignment PIN_AA18 -to JOY_SELECT
 
 #I2s
-set_location_assignment PIN_H21 -to SCLK
-set_location_assignment PIN_H22 -to SDIN
-set_location_assignment PIN_F22 -to MCLK
-set_location_assignment PIN_L22 -to LRCLK
+set_location_assignment PIN_M20 -to SCLK
+set_location_assignment PIN_AB14 -to LRCLK
+set_location_assignment PIN_AA15 -to SDIN
