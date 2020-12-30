@@ -762,13 +762,29 @@ video_mixer #(400,0,1) video_mixer
 	.G(G_OSD),
 	.B(B_OSD),
 	.VGA_DE(),
+    .VGA_HS(hsync_o),
+    .VGA_VS(vsync_o),
+
 `endif
 	.HBlank(hblank),
 	.VBlank(vblank)
 );
 
-
 assign CLK_VIDEO = clk_sys;
+
+`ifdef CYCLONE
+reg hsync_o, vsync_o, csync_o, csync_en;
+
+csync csync_gen (.clk(CLK_VIDEO), .hsync(hsync_o), .vsync(vsync_o), .csync(csync_o));
+
+assign csync_en = !(scale || forced_scandoubler);
+assign VGA_VS = csync_en ? 1'b1     : ~vsync_o;
+assign VGA_HS = csync_en ? ~csync_o : ~hsync_o;
+
+	//assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      : csync_en ? 1'b1 : ~vs1;
+	//assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      : csync_en ? ~cs1 : ~hs1;
+
+`endif
 
 //////////////////// CHROMA81 ////////////////////
 // mapped at C000 and accessible only in non-M1 cycle
